@@ -1,0 +1,93 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "Stores user profile information and preferences.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "The unique ID of the user." },
+        "name": { "type": "string", "description": "The full name of the user." },
+        "email": { "type": "string", "format": "email", "description": "The email address of the user." },
+        "phone": { "type": "string", "description": "The phone number of the user." },
+        "location": { "type": "string", "description": "The location of the user." },
+        "bio": { "type": "string", "description": "A short biography of the user." },
+        "avatar": { "type": "string", "format": "uri", "description": "The URL of the user's avatar image." },
+        "role": { "type": "string", "enum": ["user", "admin"], "description": "The role of the user." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "The timestamp when the profile was created." }
+      },
+      "required": ["uid", "email", "name"]
+    },
+    "SavedVenue": {
+      "title": "Saved Venue",
+      "description": "Represents a venue saved by a user.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "The ID of the user who saved the venue." },
+        "venueId": { "type": "string", "description": "The ID of the saved venue." },
+        "savedAt": { "type": "string", "format": "date-time", "description": "The timestamp when the venue was saved." }
+      },
+      "required": ["userId", "venueId", "savedAt"]
+    },
+    "Venue": {
+      "title": "Venue",
+      "description": "Details of a wedding venue.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "type": { "type": "string", "enum": ["Palace", "Beach", "Resort", "Banquet", "Heritage"] },
+        "location": { "type": "string" },
+        "city": { "type": "string" },
+        "state": { "type": "string" },
+        "pricePerPlate": { "type": "number" },
+        "capacity": {
+          "type": "object",
+          "properties": {
+            "min": { "type": "number" },
+            "max": { "type": "number" }
+          }
+        },
+        "rating": { "type": "number" },
+        "reviews": { "type": "number" },
+        "images": { "type": "array", "items": { "type": "string" } },
+        "amenities": { "type": "array", "items": { "type": "string" } },
+        "description": { "type": "string" },
+        "featured": { "type": "boolean" }
+      },
+      "required": ["id", "name", "type", "city", "pricePerPlate"]
+    },
+    "Booking": {
+      "title": "Booking",
+      "description": "A booking request for a venue.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "venueId": { "type": "string" },
+        "venueName": { "type": "string" },
+        "date": { "type": "string", "format": "date" },
+        "guests": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "confirmed", "cancelled"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "venueId", "date", "guests", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profile documents."
+    },
+    "/users/{userId}/saved_venues/{venueId}": {
+      "schema": "SavedVenue",
+      "description": "Venues saved by a specific user."
+    },
+    "/venues/{venueId}": {
+      "schema": "Venue",
+      "description": "Venue details."
+    },
+    "/bookings/{bookingId}": {
+      "schema": "Booking",
+      "description": "Venue booking documents."
+    }
+  }
+}

@@ -1,0 +1,139 @@
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Collection: users
+// Document ID: {userId} (matches request.auth.uid)
+// Fields:
+//   - uid: string (required) - The unique ID of the user.
+//   - name: string (required) - The full name of the user.
+//   - email: string (required, email format) - The email address.
+//   - phone: string (optional) - The phone number.
+//   - location: string (optional) - The location.
+//   - bio: string (optional) - A short biography.
+//   - avatar: string (optional, uri format) - The URL of the avatar.
+//   - role: string (required, enum: ['user', 'admin']) - The user's role.
+//   - createdAt: timestamp (required) - Creation timestamp.
+//
+// Collection: users/{userId}/saved_venues
+// Document ID: {venueId}
+// Fields:
+//   - userId: string (required) - The ID of the user.
+//   - venueId: string (required) - The ID of the venue.
+//   - savedAt: timestamp (required) - When it was saved.
+//
+// Collection: venues
+// Document ID: {venueId}
+// Fields:
+//   - id: string (required)
+//   - name: string (required)
+//   - type: string (required, enum)
+//   - city: string (required)
+//   - pricePerPlate: number (required)
+//   ... other fields
+//
+// Collection: bookings
+// Document ID: {bookingId}
+// Fields:
+//   - userId: string (required)
+//   - venueId: string (required)
+//   - venueName: string (required)
+//   - date: string (required, date format)
+//   - guests: number (required)
+//   - status: string (required, enum: ['pending', 'confirmed', 'cancelled'])
+//   - createdAt: timestamp (required)
+//
+// ===============================================================
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "dev889082@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidUrl(url) {
+      return url is string && (url.matches("^https://.*") || url.matches("^http://.*"));
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'name', 'email', 'role', 'createdAt']) &&
+             data.uid == request.auth.uid &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             isValidEmail(data.email) &&
+             data.role in ['user', 'admin'] &&
+             data.createdAt is timestamp;
+    }
+
+    function isValidBooking(data) {
+      return data.keys().hasAll(['userId', 'venueId', 'venueName', 'date', 'guests', 'status', 'createdAt']) &&
+             data.userId == request.auth.uid &&
+             data.venueId is string &&
+             data.venueName is string &&
+             data.date is string &&
+             data.guests is number && data.guests > 0 &&
+             data.status in ['pending', 'confirmed', 'cancelled'] &&
+             data.createdAt is timestamp;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    // Users collection
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && (request.resource.data.role == 'user' || isAdmin());
+      allow update: if isOwner(userId) && isValidUser(request.resource.data) && (request.resource.data.role == resource.data.role || isAdmin());
+      allow delete: if isAdmin();
+
+      // Saved Venues subcollection
+      match /saved_venues/{venueId} {
+        allow read: if isOwner(userId);
+        allow write: if isOwner(userId);
+      }
+    }
+
+    // Venues collection
+    match /venues/{venueId} {
+      allow read: if true; // Publicly readable
+      allow write: if isAdmin();
+    }
+
+    // Bookings collection
+    match /bookings/{bookingId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuthenticated() && isValidBooking(request.resource.data);
+      allow update: if isAdmin() || (isOwner(resource.data.userId) && request.resource.data.status == 'cancelled' && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']));
+      allow delete: if isAdmin();
+    }
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
